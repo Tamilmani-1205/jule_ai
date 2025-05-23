@@ -73,6 +73,46 @@ Once the services are up and running, you can access them via your browser:
     -   HTTP receiver: `localhost:4318`
     -   Prometheus exporter (scraped by Prometheus): `localhost:8889` (available at `otel-collector:8889` within Docker network)
 
+## Testing Logs and Metrics for `/hello` API
+
+1.  **Generate Traffic:**
+    Access the `/hello` endpoint a few times using your browser or `curl`:
+    ```bash
+    curl http://localhost:8080/hello
+    # or open http://localhost:8080/hello in your browser
+    ```
+
+2.  **Check Application Logs (via Otel Collector):**
+    The Spring Boot application's logs (including SLF4J logs from `HelloController` and OpenTelemetry's span events if the logging exporter is configured verbosely enough) are sent to the Otel Collector. You can view them in the collector's output:
+    ```bash
+    docker-compose logs otel-collector
+    ```
+    Look for lines indicating logs from `springboot-app` or events from the `HelloController`'s custom span. Span events might be part of the trace logging.
+
+3.  **Check Traces (Conceptual):**
+    The custom span and its events created in `HelloController` are part of the trace data. This data is sent to `otel-collector`. While this setup doesn't include a dedicated trace visualization backend (like Jaeger or Zipkin), the `otel-collector` is configured to log traces it receives. You might see trace information in:
+    ```bash
+    docker-compose logs otel-collector
+    ```
+    *(Note: For a real setup, you'd add Jaeger/Zipkin to `docker-compose.yml` and configure the Otel collector to export traces to it.)*
+
+4.  **Check Metrics in Prometheus:**
+    - Navigate to Prometheus: `http://localhost:9090`
+    - In the "Expression" browser, you can query for metrics related to the `/hello` endpoint. Examples:
+        - Count of requests to `/hello`:
+          `http_server_requests_seconds_count{service_name="springboot-app", uri="/hello"}` (Note: label `uri` might be `http.route` or `http.target` depending on exact OTel semantic conventions version)
+        - Latency of requests to `/hello` (histogram):
+          `http_server_requests_seconds_bucket{service_name="springboot-app", uri="/hello"}`
+    - You should also see the custom span metrics if they are generated (though `spanBuilder` itself doesn't automatically create duration metrics in Prometheus without more config). Standard HTTP metrics are the primary focus here.
+
+5.  **Check Metrics in Grafana:**
+    - Navigate to Grafana: `http://localhost:3000` (admin/password as previously noted, or specific user/pass if changed)
+    - The "Spring Boot App Metrics" dashboard should show JVM metrics. You can create new panels or a new dashboard to query and visualize the HTTP metrics from Prometheus (e.g., using the queries mentioned above).
+    - The existing dashboard displays `jvm_memory_used_bytes`. You can add a new panel:
+        - Title: "Hello API Requests"
+        - Query: `sum(rate(http_server_requests_seconds_count{service_name="springboot-app", uri="/hello"}[1m]))` (Requests per second)
+        - Or `sum(increase(http_server_requests_seconds_count{service_name="springboot-app", uri="/hello"}[5m]))` (Total requests in last 5m)
+
 ## Stopping the Setup
 
 To stop and remove all the containers, networks, and volumes defined in `docker-compose.yml`:
