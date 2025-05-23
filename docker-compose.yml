@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  springboot-app:
+    build:
+      context: ./springboot-app
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      # OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_RESOURCE_ATTRIBUTES are set in application.properties
+      # No JAVA_TOOL_OPTIONS needed due to opentelemetry-spring-boot-starter
+      SPRING_APPLICATION_NAME: demo # Matches what's in application.properties
+    depends_on:
+      - otel-collector
+    networks:
+      - monitoring_network
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.88.0
+    ports:
+      - "4317:4317" # gRPC
+      - "4318:4318" # HTTP
+      - "8889:8889" # Prometheus exporter
+    volumes:
+      - ./otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    command: "--config /etc/otelcol-contrib/config.yaml"
+    networks:
+      - monitoring_network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command: "--config.file=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - otel-collector
+      - springboot-app # Depends on springboot-app for direct scraping (optional)
+    networks:
+      - monitoring_network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/dashboards/:/etc/grafana/provisioning/dashboards/
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: password
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring_network
+
+networks:
+  monitoring_network:
+    driver: bridge
