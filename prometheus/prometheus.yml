@@ -1,12 +1,12 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 150s
 
 scrape_configs:
   - job_name: 'otel-collector'
     static_configs:
-      - targets: ['otel-collector:8889']
+      - targets: ['localhost:8889']
   - job_name: 'springboot-app' # Optional: if Spring Boot app exposes /actuator/prometheus directly
     static_configs:
-      - targets: ['springboot-app:8080'] # This requires service discovery or fixed IP
+      - targets: ['localhost:8080'] # This requires service discovery or fixed IP
     metrics_path: /actuator/prometheus
     # For Docker Compose, service name resolution works, so 'springboot-app:8080' is fine.

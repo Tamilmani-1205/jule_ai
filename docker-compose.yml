@@ -1,6 +1,23 @@
-version: '3.8'
+version: '3.3'
 
 services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.88.0
+    ports:
+      - "4317:4317" # gRPC
+      - "4318:4318" # HTTP
+      - "8889:8889" # Prometheus exporter
+    volumes:
+      - ./otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    command: "--config /etc/otelcol-contrib/config.yaml"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8889/"]
+      interval: 100s
+      timeout: 100s
+      retries: 5
+    networks:
+      - monitoring_network
+
   springboot-app:
     build:
       context: ./springboot-app
@@ -13,18 +30,6 @@ services:
       SPRING_APPLICATION_NAME: demo # Matches what's in application.properties
     depends_on:
       - otel-collector
-    networks:
-      - monitoring_network
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.88.0
-    ports:
-      - "4317:4317" # gRPC
-      - "4318:4318" # HTTP
-      - "8889:8889" # Prometheus exporter
-    volumes:
-      - ./otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
-    command: "--config /etc/otelcol-contrib/config.yaml"
     networks:
       - monitoring_network
 
